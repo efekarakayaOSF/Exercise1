@@ -1,10 +1,10 @@
 <apex:page standardController="Account" extensions="AccountRelatedContactsExtension">
     <script>
-    	function confirmation(name) {
+        function confirmation(name) {
             var choice = confirm("Do you want to set " + name + " as primary contact?");
             
-			if(choice) {
-            	setContactName(name);
+            if(choice) {
+                setContactName(name);
             }
         }
     </script>
@@ -33,23 +33,22 @@
         </apex:pageBlock>
     </apex:form>
     
-	<apex:form >
-    	<apex:pageBlock id="contactTBL" title="Related Contacts">  		
+    <apex:form >
+        <apex:pageBlock id="contactTBL" title="Related Contacts">       
             <apex:outputLabel value="There is no related contact" rendered="{!NOT(hasResult)}" />
-            <apex:pageBlockTable value="{!contacts}" var="contact" rendered="{!hasResult}">
-        			<apex:column value="{!contact.Name}" />
-            		<apex:column value="{!contact.Title}" />
-            		<apex:column value="{!contact.MobilePhone}" />
-            		<apex:column value="{!contact.Is_Primary_Contact__c}" />
-					<apex:column >
-                    	<apex:commandLink value="Set As Primary" onclick="confirmation('{!contact.Name}');" reRender="contactTBL" />
-            		</apex:column>
-        	</apex:pageBlockTable>
-            
+            <apex:pageBlockTable value="{!displayResult}" var="contact" rendered="{!hasResult}">
+                    <apex:column value="{!contact.Name}" />
+                    <apex:column value="{!contact.Title}" />
+                    <apex:column value="{!contact.MobilePhone}" />
+                    <apex:column value="{!contact.Is_Primary_Contact__c}" />
+                    <apex:column >
+                        <apex:commandLink value="Set As Primary" onclick="confirmation('{!contact.Name}');" reRender="contactTBL" />
+                    </apex:column>
+            </apex:pageBlockTable>
             <table stlye="width: 100%">
                 <tr>
                     <td>
-                        Page: <apex:outputText value="{!currentPage} of {! totalPageSize }" />
+                        Page: <apex:outputText value="{!pageNumber} of {! totalPageNumber }" />
                         &nbsp;&nbsp;&nbsp;
                     	<!-- Previous page -->
 						<!-- active -->
@@ -64,7 +63,7 @@
 						<apex:outputText style="color: #ccc;" value="Next »" rendered="{! NOT(hasNext) }"/>
                     </td>
                 </tr>
-            </table>
+            </table>         
         </apex:pageBlock>
         <apex:actionFunction action="{!changePrimary}" name="setContactName" reRender="contactTBL">
             <apex:param name="tempPrimaryContactName" value="" assignTo="{!tempPrimaryContactName}"/>
