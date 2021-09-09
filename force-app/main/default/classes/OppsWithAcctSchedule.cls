@@ -18,8 +18,8 @@ global class OppsWithAcctSchedule implements Schedulable{
      * @description required method to call and execute batch apex class.
      */
     global void execute(SchedulableContext sc) {
-        OppsWithAcctBatch b = new OppsWithAcctBatch();
+        // OppsWithAcctBatch b = new OppsWithAcctBatch();
         
-		Database.executeBatch(b);
+		Database.executeBatch(new OppsWithAcctBatch() , 100);
     }
 }

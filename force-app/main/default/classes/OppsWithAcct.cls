@@ -15,11 +15,11 @@ public class OppsWithAcct {
     /**
      * @author Efe Kaan Karakaya
      * @date  September 8, 2021
-     * @name setReminders
+     * @name setReminder
      * @description method to create custom schedule.
      * @params schedule name to prevent duplicate, cron expression to set time.
      */
-    public static void setReminders(String scheduleName, String cronExp) {
+    public static void setReminder(String scheduleName, String cronExp) {
         OppsWithAcctSchedule sc = new OppsWithAcctSchedule();
         System.schedule(scheduleName, cronExp, sc);
     }
