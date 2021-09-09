@@ -1,0 +1,26 @@
+<!--
+/**
+ * File:        WeatherPage.vfp
+ * Project:     Practical Exercise 4
+ * Date:        September 9, 2021
+ * Created By:  Efe Kaan Karakaya
+ * *************************************************************************
+ * Description:  A visualpage to display weather data of the account city
+ * *************************************************************************
+ * History:
+ * Date:                Modified By:             Description:
+ */
+-->
+<apex:page standardController="Account" extensions="WeatherPageExtension">
+    <apex:outputText value="{!account.billingcity}" rendered="false" />
+   	<apex:form >
+        <apex:pageBlock title="Missing data (Billing City)" rendered="{! ISNULL(cityName) }" />
+    	<apex:pageBlock title="Weather in {!cityName}" rendered="{! NOT(ISNULL(cityName)) }" >
+            <apex:pageBlockSection columns="2">
+                <apex:outputText value="{!description}" label="Description" />
+            	<apex:outputText value="{!temperature}" label="Temperature" />
+                <apex:image id="iconImage" url="{!icon}" style="margin-left: 150px; background-color: #00ffe64d;" />
+            </apex:pageBlockSection>	
+        </apex:pageBlock>
+    </apex:form>
+</apex:page>
