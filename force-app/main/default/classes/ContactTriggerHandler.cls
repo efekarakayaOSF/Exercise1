@@ -29,11 +29,6 @@ public with sharing class ContactTriggerHandler {
         Contact c = newContact[0];
         Contact primaryContact = getPrimaryContact(c.AccountId);
         
-        // Additional control statement.
-        if(c.MobilePhone == null) {
-            c.MobilePhone.addError('You have to specify a mobile phone value to create the contact.');
-        }
-        
         if(c.Is_Primary_Contact__c == true && primaryContact != null) {
             c.Is_Primary_Contact__c.addError('You cannot set this contact as primary. There is already one primary contact.');
         }
@@ -111,9 +106,15 @@ public with sharing class ContactTriggerHandler {
             c.Primary_Contact_Phone__c = pContact.Primary_Contact_Phone__c;
             contactsToUpdate.add(c);
         }
-
-        // Perform bulk update operation.
-        Database.update(contactsToUpdate, false);
+		
+        try {
+            // Perform bulk update operation.
+        	Database.update(contactsToUpdate, false);
+        } catch (DmlException d) {
+            ApexPages.addMessage(
+            	new ApexPages.message(
+                	ApexPages.severity.ERROR, 'Error! Contacts cannot be updated.'));
+        }
     }
     
     
@@ -126,13 +127,20 @@ public with sharing class ContactTriggerHandler {
      * @return Primary Contact
      */
     private static Contact getPrimaryContact(Id acctId) {
-        List<Contact> contacts = [SELECT Name, Is_Primary_Contact__c, Phone, MobilePhone, Primary_Contact_Phone__c FROM Contact
+        try {
+            List<Contact> contacts = [SELECT Name, Is_Primary_Contact__c, Phone, MobilePhone, Primary_Contact_Phone__c FROM Contact
                     WHERE AccountId = :acctId AND Is_Primary_Contact__c = true LIMIT 1];
-        
-        if(contacts.size() == 0) {
+            
+            if(contacts.size() == 0) {
+            	return null;
+        	} else {
+            	return contacts[0];
+        	}
+        } catch (QueryException q) {
+            ApexPages.addMessage(
+            	new ApexPages.message(
+                	ApexPages.severity.ERROR, 'Error! Contacts query is failed.'));
             return null;
-        } else {
-            return contacts[0];
-        }
+        }  
     }
 }
