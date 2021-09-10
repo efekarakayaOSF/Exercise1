@@ -67,7 +67,7 @@ public with sharing class ContactTriggerHandler {
         Contact c = newContact[0];
         Contact primaryContact = getPrimaryContact(c.AccountId);
         
-        if(c.Is_Primary_Contact__c == true && primaryContact != null && c.Id != primaryContact.Id) {
+        if(c.Is_Primary_Contact__c == true && primaryContact != null) {
             c.Is_Primary_Contact__c.addError('You cannot set this contact as primary. There is already one primary contact.');
         }
     }
