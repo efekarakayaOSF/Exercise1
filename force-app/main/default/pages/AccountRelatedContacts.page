@@ -1,10 +1,10 @@
 <apex:page standardController="Account" extensions="AccountRelatedContactsExtension">
     <script>
-        function confirmation(name) {
+        function confirmation(name, id) {
             var choice = confirm("Do you want to set " + name + " as primary contact?");
             
             if(choice) {
-                setContactName(name);
+                setPrimary(id);
             }
         }
     </script>
@@ -41,8 +41,8 @@
                     <apex:column value="{!contact.Title}" />
                     <apex:column value="{!contact.MobilePhone}" />
                     <apex:column value="{!contact.Is_Primary_Contact__c}" />
-                    <apex:column >
-                        <apex:commandLink value="Set As Primary" onclick="confirmation('{!contact.Name}');" reRender="contactTBL" />
+                    <apex:column rendered="{!NOT(contact.Is_Primary_Contact__c)}">
+                        <apex:commandLink value="Set As Primary" onclick="confirmation('{!contact.Name}','{!contact.Id}');" reRender="contactTBL" />
                     </apex:column>
             </apex:pageBlockTable>
             <table stlye="width: 100%">
@@ -65,8 +65,8 @@
                 </tr>
             </table>         
         </apex:pageBlock>
-        <apex:actionFunction action="{!changePrimary}" name="setContactName" reRender="contactTBL">
-            <apex:param name="tempPrimaryContactName" value="" assignTo="{!tempPrimaryContactName}"/>
+        <apex:actionFunction action="{!changePrimary}" name="setPrimary" reRender="contactTBL">
+            <apex:param name="tempPrimaryContactId" value="" assignTo="{!tempPrimaryContactId}"/>
         </apex:actionFunction>
     </apex:form>
 </apex:page>

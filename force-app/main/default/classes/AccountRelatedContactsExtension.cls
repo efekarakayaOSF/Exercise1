@@ -9,6 +9,7 @@
  * History:
  * Date:                Modified By:             Description:
  * September 6, 2021	Efe Kaan Karakaya		 Mistakes were fixed. Some functional improvements were done.
+ * September 10, 2021   Efe Kaan Karakaya        Change temp primary name to temp primary id, queries surrounded by try-catch
  */
 
 public class AccountRelatedContactsExtension {
@@ -22,7 +23,7 @@ public class AccountRelatedContactsExtension {
         }
         set;
     }   // Pre-defined but also can change dynamically in visualforce page.
-    public String tempPrimaryContactName {get; set;} // The value which is taken from visualforce page, indicate next primary contact.
+    public Id tempPrimaryContactId {get; set;} // The value which is taken from visualforce page, indicate next primary contact.
     public Integer offset {get; private set;}
     public Integer maxLimit {get; private set;} // Max display records in a page.
     public Integer recordCount {get; private set;}
@@ -80,14 +81,19 @@ public class AccountRelatedContactsExtension {
      */
     private void calculateTotalRecordCount() {
         String tmpSearchTerm = '%' + searchTerm + '%';
-        this.recordCount = [SELECT Count() FROM Contact WHERE AccountId = :acct.Id AND Name LIKE :tmpSearchTerm];
-        
-        if(recordCount > 0) {
-        	hasResult = true;
-        } else {
-            hasResult = false;
-        }
-        this.offset = 0;
+        try {
+            this.recordCount = [SELECT Count() FROM Contact WHERE AccountId = :acct.Id AND Name LIKE :tmpSearchTerm];
+            if(recordCount > 0) {
+        	    hasResult = true;
+                this.offset = 0;
+            } else {
+                hasResult = false;
+            }   
+        } catch(QueryException q) {
+            ApexPages.addMessage(
+            	new ApexPages.message(
+                	ApexPages.severity.ERROR, 'Error! Count query is failed.'));
+        }  
     }
     
     
@@ -101,10 +107,18 @@ public class AccountRelatedContactsExtension {
      */
     public List<Contact> getDisplayResult() {
         String tmpSearchTerm = '%' + searchTerm + '%';
-		List<Contact> result = [SELECT Name, Title, MobilePhone, Is_Primary_Contact__c FROM Contact WHERE AccountId = :acct.Id
+
+        try {
+            List<Contact> result = [SELECT Name, Title, MobilePhone, Is_Primary_Contact__c FROM Contact WHERE AccountId = :acct.Id
             AND Name LIKE :tmpSearchTerm LIMIT :maxLimit OFFSET :offset];
-        
-        return result;
+
+            return result;
+        } catch(QueryException q) {
+            ApexPages.addMessage(
+            	new ApexPages.message(
+                	ApexPages.severity.ERROR, 'Error! Result query is failed.'));
+            return new List<Contact>();
+        }
     }
     
     
@@ -137,37 +151,35 @@ public class AccountRelatedContactsExtension {
      * @description method to set or change a primary contact. Each account can have only one primary contact at the same time.
      */
     public void changePrimary() {
-        // This list contains previous and next(not yet) primary contacts if they exist, ofc.
-		List<Contact> tempContacts = [SELECT Name, Is_Primary_Contact__c FROM Contact
-                                     	Where AccountId = :acct.Id AND (Is_Primary_Contact__c = true OR Name = :tempPrimaryContactName)];
-		
-        // That is unexpectable result. List can have maximum 2 records (previous and next).
-        if(tempContacts.size() > 2) {
-            ApexPages.addMessage(
-            	new ApexPages.message(
-                	ApexPages.severity.ERROR, 'Unexpected error! More than one primary contact or multi-records with same name'));
-        } else {
-            List<Contact> contactsToUpdate = new List<Contact>();
-            // If there is no primary contact, previousPrimaryContact may be null.
-            Contact previousPrimaryContact, nextPrimaryContact; 
-            
-            // Determine which one is previous and which one is next.
+        try {
+            // This list contains previous primary (if exists) and next(not yet) contacts.
+		    List<Contact> tempContacts = [SELECT Is_Primary_Contact__c FROM Contact Where AccountId = :acct.Id
+                                        AND (Is_Primary_Contact__c = true OR Id = :tempPrimaryContactId)];
+            if(tempContacts.size() < 1 || tempContacts.size() > 2) {
+                throw new QueryException();
+            }
+			
+            Contact previous, next;
+            // Primary -> normal, next primary -> primary.
             for(Contact c : tempContacts) {
-                if(c.Is_Primary_Contact__c) {
-                    previousPrimaryContact = c;
+                if(c.Id == tempPrimaryContactId) {
+                    c.Is_Primary_Contact__c = true;
+                    next = c;
                 } else {
-                    nextPrimaryContact = c;
+                    c.Is_Primary_Contact__c = false;
+                    previous = c;
                 }
             }
-            
-            // There might be no primary contact yet, it's okay. If exists, set it as false.
-            if(previousPrimaryContact != null) {
-                previousPrimaryContact.Is_Primary_Contact__c = false;
-                update previousPrimaryContact;
-            }
-            
-            nextPrimaryContact.Is_Primary_Contact__c = true; // Set it as primary contact
-            update nextPrimaryContact;
-        }
+			update previous; // First set previous primary contact to false, otherwise this will cause a problem.
+            update next;  
+        } catch (QueryException q) {
+            ApexPages.addMessage(
+            	new ApexPages.message(
+                	ApexPages.severity.ERROR, 'Error! Query is failed.'));
+        } catch(DmlException d) {
+            ApexPages.addMessage(
+            	new ApexPages.message(
+                	ApexPages.severity.ERROR, 'Error! Contacts cannot be updated.'));
+        }      	
     }
 }
