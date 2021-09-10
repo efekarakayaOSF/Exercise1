@@ -9,6 +9,7 @@
  * *************************************************************************
  * History:
  * Date:                Modified By:             Description:
+ * September 10, 2021   Efe Kaan Karakaya        Queries surrounded by try-catch blocks. Currency is retrieved from user currency.
  */
 global class OppsWithAcctBatch implements Database.Batchable<sObject>, Database.Stateful {
  	
@@ -27,7 +28,7 @@ global class OppsWithAcctBatch implements Database.Batchable<sObject>, Database.
      * @params BatchableContext which is retrieved from database
      * @return Scope of the batch
      */
-    global Database.QueryLocator start(Database.BatchableContext bc) {       
+    global Database.QueryLocator start(Database.BatchableContext bc) {   
         Database.QueryLocator query = Database.getQueryLocator(
             'SELECT AccountId, Email, Account.Name FROM Contact WHERE Is_Primary_Contact__c = true');
      
@@ -45,22 +46,32 @@ global class OppsWithAcctBatch implements Database.Batchable<sObject>, Database.
     global void execute(Database.BatchableContext bc, List<Contact> scope) {
         for(Contact cont : scope) {
             Record rec = new Record(cont.Account.Name, cont.Email); // A record object is initialized.
-            List<AggregateResult> resList = [SELECT StageName, SUM(Amount) Total 
-                                           FROM Opportunity WHERE AccountId = :cont.AccountId GROUP BY StageName];
-            // By using AggreageteResult, get values from grouped stage names.
-            for(AggregateResult res : resList) {
-                String stage = (String)res.get('StageName');
-                Double total = (Double)res.get('Total');
+            try {
+            	// By using AggreageteResult, get values from grouped stage names.
+            	for(AggregateResult res : [SELECT StageName, SUM(Amount) Total FROM Opportunity 
+                                            WHERE AccountId = :cont.AccountId GROUP BY StageName]) {
+
+                	String stage = (String)res.get('StageName');
+                	Double total = (Double)res.get('Total');
                 
-                if(stage == 'Closed Won') {
-                    rec.closedWonTotal = total;
-                } else if(stage == 'Closed Lost') {
-                    rec.closedLostTotal = total;
-                } else {
-                    rec.openTotal += total;
-                }
+                	if(stage == 'Closed Won') {
+                    	rec.closedWonTotal = total;
+                	} else if(stage == 'Closed Lost') {
+                    	rec.closedLostTotal = total;
+                	} else {
+                    	rec.openTotal += total;
+                	}
+            	}
+            	records.add(rec); // Record object is added to records list.
+            } catch (QueryException q) {
+                
+                System.debug('::: Error! Query is failed.');
+                /*
+                 * Notify sysadmin about the problem with contains related information, maybe?
+                	User u = [SELECT Email FROM User WHERE Profile.Name = 'System Administrator'];    
+                	EmailUtils.sendingEmailToPrimaryContact(u.Email, 'Error:OppsWithAcctBatch', 'resList query is failed.');
+				*/
             }
-            records.add(rec); // Record object is added to records list.
         }
     }
 
@@ -74,12 +85,14 @@ global class OppsWithAcctBatch implements Database.Batchable<sObject>, Database.
      */
     global void finish(Database.BatchableContext bc) {
         
+        String c = UserInfo.getDefaultCurrency();
         // Send email for each record.
         for(Record r : records) {
             String acctName = r.accountName;
-            String closedWon = '€' + r.closedWonTotal;
-            String closedLost = '€' + r.closedLostTotal;
-            String open = '€' + r.openTotal;
+            // Just using currency shortening(eg. EUR), but no conversion is made. 
+            String closedWon = r.closedWonTotal + ' ' + c;
+            String closedLost = r.closedLostTotal + ' ' + c;
+            String open = r.openTotal + ' ' + c;
             
             String emailSubject = 'Periodical Opportunities Notification About ' + acctName;
             String emailSendTo = r.primaryContactEmail;
