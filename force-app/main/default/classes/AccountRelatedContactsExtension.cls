@@ -1,173 +1,148 @@
-/**
- * File:        AccountRelatedContactsExtension.cls
- * Project:     Practical Exercise 1
- * Date:        September 6, 2021
- * Created By:  Efe Kaan Karakaya
- * *************************************************************************
- * Description:  An extension class to support functionality of AccountRelatedContacts page.
- * *************************************************************************
- * History:
- * Date:                Modified By:             Description:
- * September 6, 2021	Efe Kaan Karakaya		 Mistakes were fixed. Some functional improvements were done.
+/*
+ * This class is used as extension of AccountRelatedContacts because of additional functionality.
+ * This class can do;
+ * + Hold variables in order to needs.
+ * + Use that variables to query.
+ * + Prepare query result to display in a proper way.
  */
 
 public class AccountRelatedContactsExtension {
     private final Account acct;
+    private Map<Integer, Contact> contactsMap;
+    private List<List<Contact>> displayPages;
+    public Boolean hasResult {get; private set;}
     public String searchTerm{
         get{
             if(searchTerm == null){
-                searchTerm = '';
+                searchTerm = 'contact1';
             }
             return searchTerm;
         }
         set;
-    }   // Pre-defined but also can change dynamically in visualforce page.
-    public String tempPrimaryContactName {get; set;} // The value which is taken from visualforce page, indicate next primary contact.
+    }  
+    public String tempPrimaryContactName {get; set;}
     public Integer offset {get; private set;}
-    public Integer maxLimit {get; private set;} // Max display records in a page.
-    public Integer recordCount {get; private set;}
-    public Boolean hasResult {get; private set;} // Determine that table has records to display or not.
+    public Integer currentPage {
+        get {
+            if(currentPage == null) {
+                currentPage = 1;
+            }
+            return currentPage;
+        }
+        private set;}
+    public Integer totalPageSize {get; private set;}
     public Boolean hasPrevious {
         get {
-            return (offset > 0);
+            return (currentPage > 1);
         }
         private set;
     }
     public Boolean hasNext {
         get {
-            Integer expr = recordCount - (maxLimit + offset);
-            return (expr > 0);
+            return (currentPage < totalPageSize);
         }
         private set;
     }
-    public Integer pageNumber {
-        get {
-            return ((offset + 1) / maxLimit) + 1;
-        }
-    }
-    public Integer totalPageNumber {
-        get {
-            return (recordCount / maxLimit) + 1;
-        }
-    }
  
-    
     public AccountRelatedContactsExtension(ApexPages.StandardController controller){
         this.acct = (Account)controller.getRecord();
-        this.maxLimit = 25;
-        calculateTotalRecordCount(); // Perform initial page reload.
+        this.offset = 25;
+        receiveNewSearchTerm();
     }
     
+    public List<Contact> getContacts() {
+        return displayPages.get(currentPage-1);
+    }
     
-    /**
-     * @author Efe Kaan Karakaya
-     * @date  September 6, 2021
-     * @name receiveNewSearchTerm
-     * @description method to call calculateTotalRecordCount, actually there was no need to create this function.
-     *     It will be called from search button in visualforce page. In this case, this function name makes more sense and seems more logical.
-     */
+    // Whenever user enter a new search term and hit the search button, this function will be called.
+    // This function gets contacts according to search term and fill them into contactsMap.
     public void receiveNewSearchTerm() {
-        calculateTotalRecordCount();
-    }
-    
-    
-    /**
-     * @author Efe Kaan Karakaya
-     * @date  September 6, 2021
-     * @name calculateTotalRecordCount
-     * @description method to calculate total record size of a query, set offset to 0 for new display
-     *     results, determine if there exists any result to display.
-     */
-    private void calculateTotalRecordCount() {
-        String tmpSearchTerm = '%' + searchTerm + '%';
-        this.recordCount = [SELECT Count() FROM Contact WHERE AccountId = :acct.Id AND Name LIKE :tmpSearchTerm];
+        contactsMap = new Map<Integer, Contact>();
+        String newSearchTerm = '%'+ this.searchTerm + '%';
         
-        if(recordCount > 0) {
-        	hasResult = true;
+        Integer i = 0;
+        for(Contact c : [SELECT Name, Title, MobilePhone, Is_Primary_Contact__c FROM Contact WHERE AccountId = :this.acct.Id
+            AND Name LIKE :newSearchTerm ORDER BY NAME ASC]) {
+                this.contactsMap.put(i, c);
+                i++;
+            } 
+        
+        if(contactsMap.size() > 0) {
+            hasResult = true;
         } else {
             hasResult = false;
         }
-        this.offset = 0;
-    }
-    
-    
-    /**
-     * @author Efe Kaan Karakaya
-     * @date  September 6, 2021
-     * @name getDisplayResult
-     * @description method to get list of corresponding display list. Each page can have maximum 25 records(maxLimit). By using
-     *     offset, list is divided into sub-lists depends on next/previous button actions.
-     * @return A list of records to display in table (max. 25 records)
-     */
-    public List<Contact> getDisplayResult() {
-        String tmpSearchTerm = '%' + searchTerm + '%';
-		List<Contact> result = [SELECT Name, Title, MobilePhone, Is_Primary_Contact__c FROM Contact WHERE AccountId = :acct.Id
-            AND Name LIKE :tmpSearchTerm LIMIT :maxLimit OFFSET :offset];
         
-        return result;
+        configurePages();
     }
     
+    public void configurePages() {
+        /* This function organizes result, split it into proper pieces.
+         * Offset is defined as 25 by default
+         * contactsMap must be filled before this function
+         * determine how many pages will be displayed according to contactsMap size depends on offset.
+         * displayPages = A list to hold all pages
+         * page = single page contains contacts amount of offset (may not be equal to offset, ex. having only 1 record to display)
+         */ 
+        displayPages = new List<List<Contact>>();
+        this.currentPage = 1; // This variable is set to 1 but we have to decrease it by one in order to use it. (zero base index, displayPages[0]..)
+        
+        /* This section goes 0 to contactsMap size. It takes contacts one by one and add them into a page list.
+         * To do that, It goes 25 records(offset) per time which means a page.
+         */ 
+        Integer i = 0;
+        while(i < contactsMap.size()) {
+            List<Contact> page = new List<Contact>();
+            for(Integer j = 0; j < offset; j++) {
+                // If there are less than offset amount of contacts.
+                if(i == contactsMap.size()) {
+                    break;
+                }
+                page.add(contactsMap.get(i)); // Get one by one from map.
+                i++;
+            }
+            displayPages.add(page);
+        }
+        totalPageSize = displayPages.size();
+    }
     
-    /**
-     * @author Efe Kaan Karakaya
-     * @date  September 6, 2021
-     * @name next
-     * @description method to increase offset by maxLimit(25) to show new results.
-     */
     public void next() {
-        offset += maxLimit;
+        this.currentPage += 1;
     }
-   
     
-    /**
-     * @author Efe Kaan Karakaya
-     * @date  September 6, 2021
-     * @name previous
-     * @description method to decrease offset by maxLimit(25) to show previous results.
-     */
     public void previous() {
-        offset -= maxLimit;
+        this.currentPage -= 1;
     }  
  
-    
-    /**
-     * @author Efe Kaan Karakaya
-     * @date  September 6, 2021
-     * @name changePrimary
-     * @description method to set or change a primary contact. Each account can have only one primary contact at the same time.
-     */
     public void changePrimary() {
-        // This list contains previous and next(not yet) primary contacts if they exist, ofc.
-		List<Contact> tempContacts = [SELECT Name, Is_Primary_Contact__c FROM Contact
-                                     	Where AccountId = :acct.Id AND (Is_Primary_Contact__c = true OR Name = :tempPrimaryContactName)];
-		
-        // That is unexpectable result. List can have maximum 2 records (previous and next).
-        if(tempContacts.size() > 2) {
+        /* Change Primary function trigger when commandLink of a contant ('set as primary) from visualforce page.
+         * This function takes previous primary contact and next primary contact objects from database.
+         * Edit and update them.
+    	*/
+        
+        Contact previousPrimaryContact = [SELECT Name, Is_Primary_Contact__C FROM Contact 
+                                            WHERE AccountId = :this.acct.Id AND Is_Primary_Contact__c = true LIMIT 1][0];
+        previousPrimaryContact.Is_Primary_Contact__c = false; // Set Is_Primary_Contact__c field as false
+        Contact nextPrimaryContact = [SELECT Name, Is_Primary_Contact__c FROM Contact 
+                                     WHERE AccountId = :this.acct.Id AND Name = :tempPrimaryContactName LIMIT 1][0];
+        
+        if(nextPrimaryContact == null) {
             ApexPages.addMessage(
-            	new ApexPages.message(
-                	ApexPages.severity.ERROR, 'Unexpected error! More than one primary contact or multi-records with same name'));
+                new ApexPages.message(
+                    ApexPages.severity.WARNING, 'Unexpected error! Selected contact cannot be found in records.'));
         } else {
-            List<Contact> contactsToUpdate = new List<Contact>();
-            // If there is no primary contact, previousPrimaryContact may be null.
-            Contact previousPrimaryContact, nextPrimaryContact; 
-            
-            // Determine which one is previous and which one is next.
-            for(Contact c : tempContacts) {
-                if(c.Is_Primary_Contact__c) {
-                    previousPrimaryContact = c;
-                } else {
-                    nextPrimaryContact = c;
-                }
-            }
-            
-            // There might be no primary contact yet, it's okay. If exists, set it as false.
-            if(previousPrimaryContact != null) {
-                previousPrimaryContact.Is_Primary_Contact__c = false;
-                update previousPrimaryContact;
-            }
-            
             nextPrimaryContact.Is_Primary_Contact__c = true; // Set it as primary contact
-            update nextPrimaryContact;
+            List<Contact> contactsToUpdate = new List<Contact>(); // There are only 2 record to handle, but anyways.. Forza bulk
+            contactsToUpdate.add(previousPrimaryContact);
+            contactsToUpdate.add(nextPrimaryContact);
+            
+            try {
+                update contactsToUpdate;
+            } catch(DmlException e) {
+                ApexPages.addMessage(
+                new ApexPages.message(
+                    ApexPages.severity.WARNING, 'Unexpected error! The contacts cannot be updated for some reason X_X'));
+            }
         }
     }
 }
