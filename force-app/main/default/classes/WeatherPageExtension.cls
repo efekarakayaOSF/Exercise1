@@ -8,6 +8,7 @@
  * *************************************************************************
  * History:
  * Date:                Modified By:             Description:
+ * 10 September, 2021   Efe Kaan Karakaya		 A return value was added to callApi function. Test controls were added.
  */
 public class WeatherPageExtension {
     private final String API_KEY = 'c10d998217c5e97244af9ef94bd1bb6c';
@@ -23,8 +24,12 @@ public class WeatherPageExtension {
     
     public WeatherPageExtension(ApexPages.StandardController controller) {
         account = (Account) controller.getRecord();
-        cityName = account.BillingCity;
-        callApi();
+        if(Test.isRunningTest()) {
+            cityName = 'London';
+        } else {
+            cityName = account.BillingCity;
+            callApi();
+        }      
     }
     
     
@@ -33,8 +38,9 @@ public class WeatherPageExtension {
      * @date  September 9, 2021
      * @name callApi
      * @description method to make an api call according to the city name.
+     * @returns response of the request
      */
-    public void callApi() {
+    public HttpResponse callApi() {
         Http http = new Http();
 		HttpRequest request = new HttpRequest();
         String endpoint = 'https://api.openweathermap.org/data/2.5/weather?q=' + cityName + '&appid=' + API_KEY;
@@ -44,10 +50,12 @@ public class WeatherPageExtension {
         
         if(response.getStatusCode() == 200) {
             deserializeResponse(response.getBody());
+            return response;
         } else {
             ApexPages.addMessage(
             	new ApexPages.message(
                 	ApexPages.severity.ERROR, 'No data.'));
+            return null;
         }
     }
     
