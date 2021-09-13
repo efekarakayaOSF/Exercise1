@@ -159,19 +159,12 @@ public class AccountRelatedContactsExtension {
                 throw new QueryException();
             }
 			
-            Contact previous, next;
-            // Primary -> normal, next primary -> primary.
+            // Assign previous primary to normal contact, temp primary to new primary contact.
             for(Contact c : tempContacts) {
-                if(c.Id == tempPrimaryContactId) {
-                    c.Is_Primary_Contact__c = true;
-                    next = c;
-                } else {
-                    c.Is_Primary_Contact__c = false;
-                    previous = c;
-                }
+                c.Is_Primary_Contact__c = c.Is_Primary_Contact__c == true ? false : true;
             }
-			update previous; // First set previous primary contact to false, otherwise this will cause a problem.
-            update next;  
+            
+			update tempContacts;
         } catch (QueryException q) {
             ApexPages.addMessage(
             	new ApexPages.message(
