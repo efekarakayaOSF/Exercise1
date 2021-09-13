@@ -14,6 +14,7 @@
  * *************************************************************************
  * History:
  * Date:                Modified By:             Description:
+ * September 13, 2021   Efe Kaan Karakaya        After insert and update were merged. Entire single process logic was changed to bulk operation.
  */
 public with sharing class ContactTriggerHandler { 
     
@@ -22,32 +23,17 @@ public with sharing class ContactTriggerHandler {
      * @author Efe Kaan Karakaya
      * @date  September 7, 2021
      * @name onBeforeInsert
-     * @description method to determine if the contact will be inserted is primary or not.
-     * @param contact
+     * @description method to determine if the contacts will be inserted contain primary or not.
+     * @param insterted contacts
      */
-    public void onBeforeInsert(List<Contact> newContact) {
-        Contact c = newContact[0];
-        Contact primaryContact = getPrimaryContact(c.AccountId);
+    public void onBeforeInsert(List<Contact> newContacts) {
+        Contact primaryContact = getPrimaryContact(newContacts[0].AccountId);
         
-        if(c.Is_Primary_Contact__c == true && primaryContact != null) {
-            c.Is_Primary_Contact__c.addError('You cannot set this contact as primary. There is already one primary contact.');
+        for(Contact c : newContacts) {
+            if(c.Is_Primary_Contact__c == true && primaryContact != null) {
+                c.Is_Primary_Contact__c.addError('Error! You can only have one primary contact at the moment.');
+            }
         }
-    }
-    
-    
-    /**
-     * @author Efe Kaan Karakaya
-     * @date  September 7, 2021
-     * @name onAfterInsert
-     * @description method to determine if inserted contact is primary or not.
-     * @param inserted contact
-     */
-    public void onAfterInsert(List<Contact> newContact) {
-        Contact c = newContact[0];
-        
-        if(c.Is_Primary_Contact__c == true) {
-            updateRecordsAsync(c.AccountId, c.Id);
-        } 
     }
     
     
@@ -55,15 +41,37 @@ public with sharing class ContactTriggerHandler {
      * @author Efe Kaan Karakaya
      * @date  September 7, 2021
      * @name onBeforeUpdate
-     * @description method to determine if the contact will be updated is primary or not.
+     * @description method to determine if the contacts will be updated contain primary or not.
      * @param contact
      */
-    public void onBeforeUpdate(List<Contact> newContact) {
-        Contact c = newContact[0];
-        Contact primaryContact = getPrimaryContact(c.AccountId);
+    public void onBeforeUpdate(List<Contact> contacts, Map<Id, Contact> contactsMap) {
+        Contact primaryContact = getPrimaryContact(contacts[0].AccountId);
+        Contact prevPrimaryContact = contactsMap.get(primaryContact.Id);
+        Boolean primaryChange = false;
         
-        if(c.Is_Primary_Contact__c == true && primaryContact != null && c.Id != primaryContact.Id) {
-            c.Is_Primary_Contact__c.addError('You cannot set this contact as primary. There is already one primary contact.');
+        if(prevPrimaryContact != null && prevPrimaryContact.Is_Primary_Contact__c == false) {
+            primaryChange = true;
+        } 
+
+        Boolean hasNewPrimary = false;
+
+        for(Contact c : contacts) {
+            if(c.Is_Primary_Contact__c == true) {
+                // If there is no primary contact, one reserved slot is available.
+                if(primaryContact == null ) {
+                    // User try to update more than one contact as primary.
+                    if(hasNewPrimary) {
+                		c.Is_Primary_Contact__c.addError('Error! You can only have one primary contact at the moment.');
+            		}	
+                	hasNewPrimary = true;
+                } else {
+                    // Current contact is marked as primary, and it's not current primary contact, and there will be no primary change operation.
+                    // This situation will cause error.
+                    if(c.Id != primaryContact.Id && !primaryChange) {
+                        c.Is_Primary_Contact__c.addError('Error! You can only have one primary contact at the moment.');
+                    }
+                }
+            }
         }
     }
     
@@ -71,15 +79,16 @@ public with sharing class ContactTriggerHandler {
     /**
      * @author Efe Kaan Karakaya
      * @date  September 7, 2021
-     * @name onAfterUpdate
-     * @description method to determine if updated contact is primary or not.
-     * @param updated contact
+     * @name onAfterInsertOrUpdate
+     * @description method to determine if any of the inserted or updated contact is primary contact.
+     * @param inserted or updated contacts
      */
-    public void onAfterUpdate(List<Contact> newContact) {
-        Contact c = newContact[0];
+    public void onAfterInsertOrUpdate(List<Contact> contacts, Map<Id, Contact> contactsMap) {
+        Contact primaryContact = getPrimaryContact(contacts[0].AccountId);
         
-        if(c.Is_Primary_Contact__c == true && !System.isFuture()) {
-            updateRecordsAsync(c.AccountId, c.Id);
+        if(contactsMap.get(primaryContact.Id) != null && !System.isFuture()) {
+            System.debug('WORKED');
+            updateRecordsAsync(primaryContact.AccountId, primaryContact.Id);
         }
     }
     
@@ -100,20 +109,21 @@ public with sharing class ContactTriggerHandler {
         pContact.Primary_Contact_Phone__c = pContact.MobilePhone;
         
         List<Contact> contactsToUpdate = new List<Contact>();
-        
-        // Update them one by one.
-        for(Contact c : [SELECT Name, MobilePhone, Primary_Contact_Phone__c FROM Contact WHERE AccountId = :accountId]){
-            c.Primary_Contact_Phone__c = pContact.Primary_Contact_Phone__c;
-            contactsToUpdate.add(c);
-        }
 		
         try {
+            // Update them one by one.
+        	for(Contact c : [SELECT Name, MobilePhone, Primary_Contact_Phone__c FROM Contact WHERE AccountId = :accountId]){
+            	c.Primary_Contact_Phone__c = pContact.Primary_Contact_Phone__c;
+            	contactsToUpdate.add(c);
+        	}
+            
+            // What about failed processes?
             // Perform bulk update operation.
-        	Database.update(contactsToUpdate, false);
+        	Database.update(contactsToUpdate, false); // No rollback
         } catch (DmlException d) {
-            ApexPages.addMessage(
-            	new ApexPages.message(
-                	ApexPages.severity.ERROR, 'Error! Contacts cannot be updated.'));
+            System.debug('Error! Database update operation was failed.');
+        } catch (QueryException q) {
+            System.debug('Error! Contact retrieve query was failed.');
         }
     }
     
@@ -128,7 +138,7 @@ public with sharing class ContactTriggerHandler {
      */
     private static Contact getPrimaryContact(Id acctId) {
         try {
-            List<Contact> contacts = [SELECT Name, Is_Primary_Contact__c, Phone, MobilePhone, Primary_Contact_Phone__c FROM Contact
+            List<Contact> contacts = [SELECT AccountId, Name, Is_Primary_Contact__c, Phone, MobilePhone, Primary_Contact_Phone__c FROM Contact
                     WHERE AccountId = :acctId AND Is_Primary_Contact__c = true LIMIT 1];
             
             if(contacts.size() == 0) {
@@ -137,9 +147,7 @@ public with sharing class ContactTriggerHandler {
             	return contacts[0];
         	}
         } catch (QueryException q) {
-            ApexPages.addMessage(
-            	new ApexPages.message(
-                	ApexPages.severity.ERROR, 'Error! Contacts query is failed.'));
+            System.debug('Error! getPrimaryContact query was failed.');
             return null;
         }  
     }

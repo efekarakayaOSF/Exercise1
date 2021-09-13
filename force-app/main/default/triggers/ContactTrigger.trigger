@@ -9,24 +9,20 @@
  * *************************************************************************
  * History:
  * Date:                Modified By:             Description:
+ * September 13, 2021   Efe Kaan Karakaya        After Insert and After Update operations were merged. newMap added into onBeforeUpdate and AfterInsertOrUpdate.
  */
 trigger ContactTrigger on Contact (before insert, after insert, before update, after update) {
 	ContactTriggerHandler handler = new ContactTriggerHandler();
 
     // When Trigger.isBefore, checks if there any primary contact collision.
     // When Trigger.isAfter, update Primary Contact Phone field of the contacts.
-    if(Trigger.isInsert) {
-        if(Trigger.isBefore) {
-            handler.onBeforeInsert(trigger.New);
+    if(Trigger.isBefore) {
+        if(Trigger.isInsert) {
+            handler.onBeforeInsert(Trigger.New);
         } else {
-            handler.onAfterInsert(trigger.New);
+            handler.onBeforeUpdate(Trigger.New, Trigger.newMap);
         }
-    } else if(Trigger.isUpdate) {
-        if(Trigger.isBefore) {
-            handler.onBeforeUpdate(trigger.New);
-        } else {
-            handler.onAfterUpdate(trigger.New);
-        }
+    } else {
+        handler.onAfterInsertOrUpdate(Trigger.New, Trigger.newMap);
     }
-   
 }
