@@ -11,16 +11,21 @@
  * Date:                Modified By:             Description:
  */
 -->
-<apex:page standardController="Account" extensions="WeatherPageExtension">
+<apex:page standardController="Account" extensions="WeatherPageExtension"> 
     <apex:outputText value="{!account.billingcity}" rendered="false" />
    	<apex:form >
-        <apex:pageBlock title="Missing data (Billing City)" rendered="{! ISNULL(cityName) }" />
-    	<apex:pageBlock title="Weather in {!cityName}" rendered="{! NOT(ISNULL(cityName)) }" >
-            <apex:pageBlockSection columns="2">
-                <apex:outputText value="{!description}" label="Description" />
-            	<apex:outputText value="{!temperature}" label="Temperature" />
-                <apex:image id="iconImage" url="{!icon}" style="margin-left: 150px; background-color: #00ffe64d;" />
-            </apex:pageBlockSection>	
+        <apex:pageBlock title="Error" rendered="{! NOT(hasData) }" >
+        	<apex:messages />
+        </apex:pageBlock>
+        <apex:pageBlock rendered="{! hasData }" >
+        	<apex:pageBlock title="Missing data (Billing City)" rendered="{! ISNULL(cityName) }" />
+    		<apex:pageBlock title="Weather in {!cityName}" rendered="{! NOT(ISNULL(cityName))}" >
+            	<apex:pageBlockSection columns="2">
+                	<apex:outputText value="{!description}" label="Description" />
+            		<apex:outputText value="{!temperature}" label="Temperature" />
+                	<apex:image id="iconImage" url="{!icon}" style="margin-left: 150px; background-color: #00ffe64d;" />
+            	</apex:pageBlockSection>	
+        	</apex:pageBlock>
         </apex:pageBlock>
     </apex:form>
 </apex:page>

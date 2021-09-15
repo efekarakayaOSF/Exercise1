@@ -9,11 +9,19 @@
  * History:
  * Date:                Modified By:             Description:
  * 10 September, 2021   Efe Kaan Karakaya		 A return value was added to callApi function. Test controls were added.
- * 15 September, 2021   Efe Kaan Karakaya        API credentials were moved to the API_Credential__mdt custom metadata.
+ * 15 September, 2021   Efe Kaan Karakaya        API credentials were moved to the API_Credential__mdt custom metadata. Added try-catch block in constructor.
  */
 public class WeatherPageExtension {
 	private final Account account;
     private API_Credential__mdt OWM; // OWM -> Open Weather Map
+    public boolean hasData {
+        get { 
+            if(hasData == null) {
+                return false;
+            }
+            return hasData;
+        }
+        set;}
     public String cityName {get; set;}
     public Double temperature {get; private set;}
     public String description {get; private set;}
@@ -24,7 +32,17 @@ public class WeatherPageExtension {
         private set;}
     
     public WeatherPageExtension(ApexPages.StandardController controller) {
-        OWM = [SELECT ACCESS_TOKEN__c, BASE_URL__c, ENDPOINT__c FROM API_Credential__mdt WHERE Label = 'OWM Credentials'];
+        
+        try { 
+            OWM = [SELECT ACCESS_TOKEN__c, BASE_URL__c, ENDPOINT__c FROM API_Credential__mdt WHERE Label = 'OWM Credentials'];
+        } catch(QueryException q) {
+            hasData = false;
+            ApexPages.addMessage(
+            	new ApexPages.message(
+                	ApexPages.severity.ERROR, 'Retrieving metadata was failed.'));
+            return;
+        }
+        
         account = (Account) controller.getRecord();
         if(Test.isRunningTest()) {
             cityName = 'London';
@@ -51,9 +69,11 @@ public class WeatherPageExtension {
         HttpResponse response = http.send(request);
         
         if(response.getStatusCode() == 200) {
+            hasData = true;
             deserializeResponse(response.getBody());
             return response;
         } else {
+            hasData = false;
             ApexPages.addMessage(
             	new ApexPages.message(
                 	ApexPages.severity.ERROR, 'No data.'));
