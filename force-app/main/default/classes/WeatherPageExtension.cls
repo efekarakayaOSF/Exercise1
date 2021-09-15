@@ -9,20 +9,22 @@
  * History:
  * Date:                Modified By:             Description:
  * 10 September, 2021   Efe Kaan Karakaya		 A return value was added to callApi function. Test controls were added.
+ * 15 September, 2021   Efe Kaan Karakaya        API credentials were moved to the API_Credential__mdt custom metadata.
  */
 public class WeatherPageExtension {
-    private final String API_KEY = 'c10d998217c5e97244af9ef94bd1bb6c';
 	private final Account account;
+    private API_Credential__mdt OWM; // OWM -> Open Weather Map
     public String cityName {get; set;}
     public Double temperature {get; private set;}
     public String description {get; private set;}
     public String icon {
         get {
-            return 'http://openweathermap.org/img/wn/' + icon + '@2x.png';
+            return OWM.BASE_URL__c + '/img/wn/' + icon + '@2x.png';
         } 
         private set;}
     
     public WeatherPageExtension(ApexPages.StandardController controller) {
+        OWM = [SELECT ACCESS_TOKEN__c, BASE_URL__c, ENDPOINT__c FROM API_Credential__mdt WHERE Label = 'OWM Credentials'];
         account = (Account) controller.getRecord();
         if(Test.isRunningTest()) {
             cityName = 'London';
@@ -43,7 +45,7 @@ public class WeatherPageExtension {
     public HttpResponse callApi() {
         Http http = new Http();
 		HttpRequest request = new HttpRequest();
-        String endpoint = 'https://api.openweathermap.org/data/2.5/weather?q=' + cityName + '&appid=' + API_KEY;
+        String endpoint = OWM.ENDPOINT__c + 'q=' + cityName + '&appid=' + OWM.ACCESS_TOKEN__c;
         request.setEndpoint(endpoint);
         request.setMethod('GET');
         HttpResponse response = http.send(request);
